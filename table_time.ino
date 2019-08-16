@@ -8,25 +8,36 @@
 #include <NTPClient.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeMono9pt7b.h>
-#include <Fonts/FreeSans12pt7b.h>;
+#include <Fonts/FreeSans12pt7b.h>
+#include <Fonts/FreeSans24pt7b.h>
+#include "Chewy_Regular_45.h"
 #include <time.h>
 
 #define TOUCH_THRESHOLD 25
 #define TOUCH1 4 // GPIO 4 for touch 1
+#define TOUCH2 27 // GPIO 27 for touch 2
 
 #define ONBOARD_LED 2
+
+#define LOOP_DELAY 50 // 50 ms
+#define TIME_UPDATE_LOOP_COUNT 20 //update time after 20 loops
+
+#define NO_OF_DIFF_CLOCK 2 // no of different clocks in FRAME 0
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 
-#define TIME_UPDATE_LOOP_COUNT 5 //update time after 5 loops
+
+
 int time_update_loop= 0;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 const char* ssid     = "14_A";
 const char* password = "fourteena";
+
+bool showWindowStatus_show= true; // if window status is shown for next frame;
 
 // const char* ssid     = "Droid";
 // const char* password = "bubublabla";
@@ -42,7 +53,7 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
 
 
 int date= 0, month= 0, year= 0;
-int hours= 5, minutes= 15, seconds= 0;
+int hours= 0, minutes= 88, seconds= 0;
 char days[7][4]= {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
 int today= 0;
 char ampm[3]= "am";
@@ -50,8 +61,12 @@ time_t rawtime;
 struct tm *ti;
 
 
-bool touchOngoing= false;
-bool fstRandomTouched= false;
+bool touchOngoing1= false, touchOngoing2= false;
+bool fstRandomTouched1= false, fstRandomTouched2= false;
+
+int frame0_clock_no= 0;
+
+int current_blink= 1; // counter for blinking clock
 
 /*******************************************
 ***** Show WARNING through onboard led *****
@@ -178,7 +193,6 @@ void loop() {
 		} else {
 			frame0(0, 0);
 		}
-		showWindowStatus(0);
 		if(frameShift_y < 5 && frameShift_y > -5) {
 			frameShift_y= 0;
 		}
@@ -187,15 +201,16 @@ void loop() {
 		if(frameShift_y > 5) {
 			frame1(frameShift_X, frameShift_y);
 			frame0(frameShift_X, frameShift_y- 64);
+			frame0_clock_no= 0;
 			frameShift_y-= frameJmp;
 		} else if(frameShift_y < -5) {
 			frame1(frameShift_X, frameShift_y);
 			frame2(frameShift_X, 64+frameShift_y);
+			// frame0_clock_no= 0;
 			frameShift_y+= frameJmp;
 		} else {
 			frame1(0, 0);
 		}
-		showWindowStatus(1);
 		if(frameShift_y < 5 && frameShift_y > -5) {
 			frameShift_y= 0;
 		}
@@ -207,14 +222,18 @@ void loop() {
 		} else if(frameShift_y < -5) {
 			frame2(frameShift_X, frameShift_y);
 			frame0(frameShift_X, 64+frameShift_y);
+			frame0_clock_no= 0;
 			frameShift_y+= frameJmp;
 		} else {
 			frame2(0, 0);
 		}
-		showWindowStatus(2);
 		if(frameShift_y < 5 && frameShift_y > -5) {
 			frameShift_y= 0;
 		}
+	}
+
+	if(currentFrame) { // dont show at frame 0...
+		showWindowStatus(currentFrame);
 	}
 
 	//************ End animation **********************
@@ -225,7 +244,7 @@ void loop() {
 
 	display.display();
 
-	delay(200);
+	delay(50);
 
 
 }
@@ -236,12 +255,13 @@ void loop() {
 ***************************************************/
 
 // onTouch executes once if being touched... 
-void onTouch() {
+void onTouch1() {
 
 	// display scroll down
 	if(!frameShift_y) {
 		frameShift_y= 64;
 		currentFrame= (currentFrame+1)% 3;
+		reset();
 	}
 
 	// display scroll up
@@ -252,22 +272,54 @@ void onTouch() {
 	// }
 }
 
+void onTouch2() {
+	if(currentFrame == 0) {
+		frame0_clock_no= (frame0_clock_no+1)%NO_OF_DIFF_CLOCK;
+		reset();
+	}
+}
+
 void runTouchInterupt() {
 
-	int val= touchRead(TOUCH1);
-	Serial.println(val);
-	if(val<TOUCH_THRESHOLD) {
-		if(!fstRandomTouched) {
-			fstRandomTouched= true;
+	int val1= touchRead(TOUCH1);
+	int val2= touchRead(TOUCH2);
+
+	Serial.print("TOUCH of- ");
+	Serial.print(TOUCH1);
+	Serial.print(" - ");
+	Serial.println(val1);
+
+	Serial.print("TOUCH of- ");
+	Serial.print(TOUCH2);
+	Serial.print(" - ");
+	Serial.println(val2);
+
+	if(val1<TOUCH_THRESHOLD) {
+		if(!fstRandomTouched1) {
+			fstRandomTouched1= true;
 		} else {
-			if(!touchOngoing) {
-				onTouch();
-				touchOngoing= true;
+			if(!touchOngoing1) {
+				onTouch1();
+				touchOngoing1= true;
 			}
 		}
 	} else {
-		touchOngoing= false;
-		fstRandomTouched= false;
+		touchOngoing1= false;
+		fstRandomTouched1= false;
+	}
+
+	if(val2<TOUCH_THRESHOLD) {
+		if(!fstRandomTouched2) {
+			fstRandomTouched2= true;
+		} else {
+			if(!touchOngoing2) {
+				onTouch2();
+				touchOngoing2= true;
+			}
+		}
+	} else {
+		touchOngoing2= false;
+		fstRandomTouched2= false;
 	}
 }
 
@@ -281,6 +333,7 @@ void runTouchInterupt() {
 ************* UPDATE TIME VARIABLES ****************
 ***************************************************/
 void updateTime() {
+	// return;
 	timeClient.update();
 	hours= timeClient.getHours()>12? timeClient.getHours()-12 : timeClient.getHours();
 	minutes= timeClient.getMinutes();
@@ -374,6 +427,10 @@ void frame1(int x, int y) {
 		display.setFont(&FreeSans12pt7b);
 		display.setCursor(35+x, 50+y);
 		display.print(".GATE.");
+	} else {
+		display.drawRect(0+x, 58+y, display.width(), 6, WHITE);
+		int remainingTime= display.width() * (float)(365-rem)/(float)365;
+		display.fillRect(0+x, 58+y, remainingTime,6 , WHITE);
 	}
 
 }
@@ -397,9 +454,18 @@ void timeStringify(int n, char *c) {
 
 void frame0(int x, int y) {
 
-	display.setFont(&FreeSans12pt7b);
-	display.setCursor(x+20, y+30);
-	display.print(touchRead(27));
+	// display.setFont(&FreeSans12pt7b);
+	// display.setCursor(x+20, y+30);
+	// display.print(touchRead(27));
+
+	switch(frame0_clock_no) {
+	case 0:
+		clock_big(x, y);
+		break;
+	case 1:
+		clock_blink(x, y);
+		break;
+	}
 }
 
 
@@ -424,14 +490,90 @@ void frame2(int x, int y) {
 void showWindowStatus(int curWindow) {
 
 	// ************** Show Window via bubble ***************
-	const int X= 124, Y= 23, distance= 9, radius= 2;
-	const int numberOfWindow= 3;
-	int i;
-	for(i=0; i< numberOfWindow; i++) {
-		if(curWindow == i) {
-			display.fillCircle(X, Y+(i)*distance, radius+1, WHITE);
-		} else {
-			display.drawCircle(X, Y+(i)*distance, radius, WHITE);
+	if(showWindowStatus_show) {
+		const int X= 124, Y= 23, distance= 9, radius= 2;
+		const int numberOfWindow= 3;
+		int i;
+		for(i=0; i< numberOfWindow; i++) {
+			if(curWindow == i) {
+				display.fillCircle(X, Y+(i)*distance, radius+1, WHITE);
+			} else {
+				display.drawCircle(X, Y+(i)*distance, radius, WHITE);
+			}
 		}
+	}
+	showWindowStatus_show= true;
+}
+
+/***************************************************
+*************  resets all variables  ***************
+***************************************************/
+
+void reset() {
+	display.dim(false);
+	current_blink= 1;
+
+}
+
+/***************************************************
+***************** Different Clocks *****************
+******************  for frame 0  *******************
+***************************************************/
+
+
+#define TIME_CONST_BLINK_ON 50
+#define TIME_CONST_BLINK_OFF 200
+void clock_blink(int x, int y) {
+	int cycle_time= TIME_CONST_BLINK_OFF+ TIME_CONST_BLINK_ON;
+	current_blink= (current_blink+1) % cycle_time;
+	if(current_blink < TIME_CONST_BLINK_ON) {
+		display.dim(false);
+
+		display.setFont(&FreeSans24pt7b);
+		display.setCursor(5+x, 48+y);
+
+		char h[3]= {'0', '0', '\0'};
+		char m[3]= {'0', '0', '\0'};
+		timeStringify(hours, h);
+		display.print(h);
+		display.print(":");
+		timeStringify(minutes, m);
+		display.print(m);
+
+	} else {
+		display.dim(true);
+	}
+
+}
+
+void clock_big(int x, int y) {
+	display.setFont(&Chewy_Regular_45);
+	display.setCursor(0+x, 34+y);
+
+	char h[3]= {'0', '0', '\0'};
+	char m[3]= {'0', '0', '\0'};
+	timeStringify(hours, h);
+	display.print(h);
+
+	display.setCursor(70+x, 60+y);
+	timeStringify(minutes, m);
+	display.print(m);
+
+	display.setFont(&FreeMono9pt7b);
+	display.setCursor(95+x, 10+y);
+	display.print(ampm);
+
+	/*********** Show Remaining days *********/
+	int rem= getRemainingDay(2, 2, 2020);
+	int boxLen= 64;
+	if(rem> 0) {
+		display.drawRect(0+x, 58+y, boxLen, 6, WHITE);
+		int remainingTime= boxLen * (float)(365-rem)/(float)365;
+		if(remainingTime < boxLen) {
+			display.fillRect(0+x, 58+y, remainingTime,6 , WHITE);
+		}
+	}
+	else if(rem == 0) {
+		display.drawRect(0+x, 58+y, boxLen, 6, WHITE);
 	}
 }
