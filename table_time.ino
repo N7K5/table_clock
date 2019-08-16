@@ -17,12 +17,14 @@
 #define TOUCH1 4 // GPIO 4 for touch 1
 #define TOUCH2 27 // GPIO 27 for touch 2
 
+#define FRAME0_TITLE_LOOP 30;
+
 #define ONBOARD_LED 2
 
 #define LOOP_DELAY 50 // 50 ms
 #define TIME_UPDATE_LOOP_COUNT 20 //update time after 20 loops
 
-#define NO_OF_DIFF_CLOCK 2 // no of different clocks in FRAME 0
+#define NO_OF_DIFF_CLOCK 4 // no of different clocks in FRAME 0
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -53,7 +55,7 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
 
 
 int date= 0, month= 0, year= 0;
-int hours= 0, minutes= 88, seconds= 0;
+int hours= 3, minutes= 0, seconds= 0;
 char days[7][4]= {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
 int today= 0;
 char ampm[3]= "am";
@@ -67,11 +69,13 @@ bool fstRandomTouched1= false, fstRandomTouched2= false;
 int frame0_clock_no= 0;
 
 int current_blink= 1; // counter for blinking clock
+int frame0_title_remaining= 0; // counter for title
 
 /*******************************************
 ***** Show WARNING through onboard led *****
 *******************************************/
 void warn() {
+	return;
 	digitalWrite(ONBOARD_LED, HIGH);
 	delay(100);
 	digitalWrite(ONBOARD_LED, LOW);
@@ -93,6 +97,10 @@ void error() {
 		digitalWrite(ONBOARD_LED, LOW);
 		delay(100);
 	}
+}
+
+void show_no_wifi() {
+
 }
 
 
@@ -239,12 +247,12 @@ void loop() {
 	//************ End animation **********************
 
 	if(WiFi.status() != WL_CONNECTED) {
-		warn();
+		show_no_wifi();
 	}
 
 	display.display();
 
-	delay(50);
+	delay(30);
 
 
 }
@@ -275,6 +283,7 @@ void onTouch1() {
 void onTouch2() {
 	if(currentFrame == 0) {
 		frame0_clock_no= (frame0_clock_no+1)%NO_OF_DIFF_CLOCK;
+		frameShift_X= 128;
 		reset();
 	}
 }
@@ -333,6 +342,7 @@ void runTouchInterupt() {
 ************* UPDATE TIME VARIABLES ****************
 ***************************************************/
 void updateTime() {
+	// updateTime_dummy();
 	// return;
 	timeClient.update();
 	hours= timeClient.getHours()>12? timeClient.getHours()-12 : timeClient.getHours();
@@ -347,6 +357,15 @@ void updateTime() {
 	month= ti->tm_mon+1;
 	date= ti->tm_mday;
 
+}
+
+void updateTime_dummy() {
+	minutes ++;
+	if(minutes > 60) {
+		minutes= 0;
+		hours ++;
+	}
+	hours= hours%24;
 }
 
 /***************************************************
@@ -458,13 +477,21 @@ void frame0(int x, int y) {
 	// display.setCursor(x+20, y+30);
 	// display.print(touchRead(27));
 
-	switch(frame0_clock_no) {
-	case 0:
-		clock_big(x, y);
-		break;
-	case 1:
-		clock_blink(x, y);
-		break;
+	void (*clocks[NO_OF_DIFF_CLOCK])(int, int)= { &clock_big, &clock_blink, &clock_analog, &clock_off};
+
+	int previous_clock_index = (frame0_clock_no-1) <0 ? NO_OF_DIFF_CLOCK-1 : frame0_clock_no-1;
+
+	if(frameShift_X == 0) {
+		clocks[frame0_clock_no](x, y);
+	}
+	else if(frameShift_X > 2* frameJmp) {
+		clocks[previous_clock_index](x - (128 - frameShift_X), y);
+		clocks[frame0_clock_no](x + frameShift_X, y);
+		frameShift_X -= 2* frameJmp;
+	} else if( frameShift_X > 0) {
+		clocks[previous_clock_index](x - (128 - frameShift_X), y);
+		clocks[frame0_clock_no](x + frameShift_X, y);
+		frameShift_X = 0;
 	}
 }
 
@@ -512,7 +539,7 @@ void showWindowStatus(int curWindow) {
 void reset() {
 	display.dim(false);
 	current_blink= 1;
-
+	frame0_title_remaining= FRAME0_TITLE_LOOP;
 }
 
 /***************************************************
@@ -520,10 +547,25 @@ void reset() {
 ******************  for frame 0  *******************
 ***************************************************/
 
+bool showTitle(char* s, int x, int y) {
+	if(frame0_title_remaining) {
+		display.setFont(&Chewy_Regular_45);
+		display.setCursor(x, y);
+		display.print(s);
+
+		frame0_title_remaining--;
+		return true;
+	}
+	return false;
+}
+
 
 #define TIME_CONST_BLINK_ON 50
 #define TIME_CONST_BLINK_OFF 200
 void clock_blink(int x, int y) {
+
+	if(showTitle("BLINK", x+5, y+48)) return;
+
 	int cycle_time= TIME_CONST_BLINK_OFF+ TIME_CONST_BLINK_ON;
 	current_blink= (current_blink+1) % cycle_time;
 	if(current_blink < TIME_CONST_BLINK_ON) {
@@ -547,6 +589,9 @@ void clock_blink(int x, int y) {
 }
 
 void clock_big(int x, int y) {
+
+	if(showTitle(" BIG ", x+5, y+48)) return;
+
 	display.setFont(&Chewy_Regular_45);
 	display.setCursor(0+x, 34+y);
 
@@ -576,4 +621,28 @@ void clock_big(int x, int y) {
 	else if(rem == 0) {
 		display.drawRect(0+x, 58+y, boxLen, 6, WHITE);
 	}
+}
+
+void clock_off(int x, int y) {
+	if(showTitle(" OFF ", x+5, y+48)) return;
+}
+
+void clock_analog(int x, int y) {
+	if(showTitle("ANALG", x+5, y+48)) return;
+
+	display.drawCircle(x+64, y+32, 31, WHITE);
+
+	int hours_12= hours>11? hours-12 : hours;
+
+	int hour_x= 15* sin((float)hours_12*PI/6);
+	int hour_y= 15* cos((float)hours_12*PI/6);
+
+	display.drawLine(x+64, y+32, x+hour_x+ 64, y-hour_y+ 32, WHITE);
+
+
+	int min_x= 30* sin((float)minutes*PI/30);
+	int min_y= 30* cos((float)minutes*PI/30);
+
+	display.drawLine(x+64, y+32, x+min_x+ 64, y-min_y+ 32, WHITE);
+
 }
