@@ -13,16 +13,17 @@
 #include "Chewy_Regular_45.h"
 #include <time.h>
 
-#define TOUCH_THRESHOLD 25
+#define TOUCH_THRESHOLD 30
 #define TOUCH1 4 // GPIO 4 for touch 1
 #define TOUCH2 27 // GPIO 27 for touch 2
 
-#define FRAME0_TITLE_LOOP 30;
+#define FRAME0_TITLE_LOOP 30; // loop count for how much time the title is shown
 
 #define ONBOARD_LED 2
 
 #define LOOP_DELAY 50 // 50 ms
-#define TIME_UPDATE_LOOP_COUNT 20 //update time after 20 loops
+#define TIME_UPDATE_LOOP_COUNT 100 //update time after 20 loops
+int time_update_loop_count_variable= TIME_UPDATE_LOOP_COUNT;
 
 #define NO_OF_DIFF_CLOCK 4 // no of different clocks in FRAME 0
 
@@ -75,7 +76,6 @@ int frame0_title_remaining= 0; // counter for title
 ***** Show WARNING through onboard led *****
 *******************************************/
 void warn() {
-	return;
 	digitalWrite(ONBOARD_LED, HIGH);
 	delay(100);
 	digitalWrite(ONBOARD_LED, LOW);
@@ -100,7 +100,10 @@ void error() {
 }
 
 void show_no_wifi() {
-
+	display.setCursor(122, 7);
+	display.setFont(&FreeMono9pt7b);
+	display.print("W");
+	display.drawLine(113, 15, 131, 0, WHITE);
 }
 
 
@@ -180,7 +183,7 @@ void loop() {
 
 	if(--time_update_loop < 0) {
 		updateTime();
-		time_update_loop= TIME_UPDATE_LOOP_COUNT;
+		time_update_loop= time_update_loop_count_variable;
 	}
 
 	runTouchInterupt();
@@ -293,15 +296,15 @@ void runTouchInterupt() {
 	int val1= touchRead(TOUCH1);
 	int val2= touchRead(TOUCH2);
 
-	Serial.print("TOUCH of- ");
-	Serial.print(TOUCH1);
-	Serial.print(" - ");
-	Serial.println(val1);
+	// Serial.print("TOUCH of- ");
+	// Serial.print(TOUCH1);
+	// Serial.print(" - ");
+	// Serial.println(val1);
 
-	Serial.print("TOUCH of- ");
-	Serial.print(TOUCH2);
-	Serial.print(" - ");
-	Serial.println(val2);
+	// Serial.print("TOUCH of- ");
+	// Serial.print(TOUCH2);
+	// Serial.print(" - ");
+	// Serial.println(val2);
 
 	if(val1<TOUCH_THRESHOLD) {
 		if(!fstRandomTouched1) {
@@ -540,6 +543,7 @@ void reset() {
 	display.dim(false);
 	current_blink= 1;
 	frame0_title_remaining= FRAME0_TITLE_LOOP;
+	time_update_loop_count_variable= TIME_UPDATE_LOOP_COUNT;
 }
 
 /***************************************************
@@ -628,17 +632,28 @@ void clock_off(int x, int y) {
 }
 
 void clock_analog(int x, int y) {
-	if(showTitle("ANALG", x+5, y+48)) return;
+	if(showTitle("ANLG", x+7, y+48)) {
+		time_update_loop_count_variable= 0;
+		return;
+	};
 
 	display.drawCircle(x+64, y+32, 31, WHITE);
 
-	int hours_12= hours>11? hours-12 : hours;
+	int sec_x= 31* sin((float)seconds*PI/30);
+	int sec_y= 31* cos((float)seconds*PI/30);
 
-	int hour_x= 15* sin((float)hours_12*PI/6);
-	int hour_y= 15* cos((float)hours_12*PI/6);
+	display.fillCircle(x+ sec_x+ 64, y- sec_y+ 32, 5, BLACK);
+	display.drawPixel(x+ sec_x+ 64, y- sec_y+ 32, WHITE);
+
+	int hours_12= hours>11? hours-12 : hours;
+	int minute_since_00= hours_12*60 + minutes;
+
+	int hour_x= 15* sin((float)minute_since_00*PI/360);
+	int hour_y= 15* cos((float)minute_since_00*PI/360);
 
 	display.drawLine(x+64, y+32, x+hour_x+ 64, y-hour_y+ 32, WHITE);
 
+	// display.drawLine(x+sec_x_2+64, y-sec_y_2+32, x+sec_x_1+ 64, y-sec_y_1+ 32, WHITE);
 
 	int min_x= 30* sin((float)minutes*PI/30);
 	int min_y= 30* cos((float)minutes*PI/30);
@@ -646,3 +661,4 @@ void clock_analog(int x, int y) {
 	display.drawLine(x+64, y+32, x+min_x+ 64, y-min_y+ 32, WHITE);
 
 }
+
