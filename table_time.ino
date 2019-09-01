@@ -10,6 +10,7 @@
 #include <Fonts/FreeMono9pt7b.h>
 #include <Fonts/FreeSans12pt7b.h>
 #include <Fonts/FreeSans24pt7b.h>
+#include "Lato_Heavy_26.h"
 #include "Chewy_Regular_45.h"
 #include <time.h>
 
@@ -39,6 +40,10 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 const char* ssid     = "14_A";
 const char* password = "fourteena";
+
+// const char* ssid     = "Spot";
+// const char* password = "bubublabla";
+
 
 bool showWindowStatus_show= true; // if window status is shown for next frame;
 
@@ -100,10 +105,8 @@ void error() {
 }
 
 void show_no_wifi() {
-	display.setCursor(122, 7);
-	display.setFont(&FreeMono9pt7b);
-	display.print("W");
-	display.drawLine(113, 15, 131, 0, WHITE);
+	display.drawCircle(122, 5, 5, WHITE);
+	display.fillCircle(122, 5, 1, WHITE);
 }
 
 
@@ -416,8 +419,9 @@ void frame1(int x, int y) {
 	// display.setTextSize(3);
 
 	/******** Show Time ************/
-	display.setFont(&FreeSansBold12pt7b);
-	display.setCursor(25+x, 17+y);
+	// display.setFont(&FreeSansBold12pt7b);
+	display.setFont(&Lato_Heavy_26);
+	display.setCursor(18+x, 20+y);
 	char h[3]= {'0', '0', '\0'};
 	char m[3]= {'0', '0', '\0'};
 	timeStringify(hours, h);
@@ -429,7 +433,7 @@ void frame1(int x, int y) {
 
 	/********** Show AM / PM ************/
 	display.setFont(&FreeMono9pt7b);
-	display.setCursor(85+x, 17+y);
+	display.setCursor(95+x, 17+y);
 	display.print(ampm);
 	
 
@@ -442,7 +446,7 @@ void frame1(int x, int y) {
 		display.setFont(&FreeMono9pt7b);
 		display.print("ds");
 		display.drawRect(0+x, 58+y, display.width(), 6, WHITE);
-		int remainingTime= display.width() * (float)(365-rem)/(float)365;
+		int remainingTime= display.width() * (float)(rem)/(float)365;
 		display.fillRect(0+x, 58+y, remainingTime,6 , WHITE);
 	}
 	else if(rem == 0) {
@@ -637,13 +641,7 @@ void clock_analog(int x, int y) {
 		return;
 	};
 
-	display.drawCircle(x+64, y+32, 31, WHITE);
-
-	int sec_x= 31* sin((float)seconds*PI/30);
-	int sec_y= 31* cos((float)seconds*PI/30);
-
-	display.fillCircle(x+ sec_x+ 64, y- sec_y+ 32, 5, BLACK);
-	display.drawPixel(x+ sec_x+ 64, y- sec_y+ 32, WHITE);
+	display.drawCircle(x+64, y+32, 29, WHITE);
 
 	int hours_12= hours>11? hours-12 : hours;
 	int minute_since_00= hours_12*60 + minutes;
@@ -655,10 +653,17 @@ void clock_analog(int x, int y) {
 
 	// display.drawLine(x+sec_x_2+64, y-sec_y_2+32, x+sec_x_1+ 64, y-sec_y_1+ 32, WHITE);
 
-	int min_x= 30* sin((float)minutes*PI/30);
-	int min_y= 30* cos((float)minutes*PI/30);
+	int min_x= 28* sin((float)minutes*PI/30);
+	int min_y= 28* cos((float)minutes*PI/30);
 
 	display.drawLine(x+64, y+32, x+min_x+ 64, y-min_y+ 32, WHITE);
+
+	int sec_x= 29* sin((float)seconds*PI/30);
+	int sec_y= 29* cos((float)seconds*PI/30);
+
+	display.fillCircle(x+ sec_x+ 64, y- sec_y+ 32, 7, BLACK);
+	display.drawCircle(x+ sec_x+ 64, y- sec_y+ 32, 3, WHITE);
+	// display.drawPixel(x+ sec_x+ 64, y- sec_y+ 32, WHITE);
 
 }
 
